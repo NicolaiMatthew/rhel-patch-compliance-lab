@@ -1,0 +1,20 @@
+katello_server_url: "https://katello.lab.internal"
+katello_org: "Lab"
+manifest_path: "{{ lookup('env', 'HOME') }}/lab-secrets/manifest.zip"
+
+rhel_product: "Red Hat Enterprise Linux for x86_64"
+rhel_repo_sets:
+  - set: "Red Hat Enterprise Linux 9 for x86_64 - BaseOS (RPMs)"
+    repo: "Red Hat Enterprise Linux 9 for x86_64 - BaseOS RPMs 9"
+  - set: "Red Hat Enterprise Linux 9 for x86_64 - AppStream (RPMs)"
+    repo: "Red Hat Enterprise Linux 9 for x86_64 - AppStream RPMs 9"
+
+lifecycle_envs:          # order matters: each one's prior is the one before it
+  - { name: Dev,  prior: Library }
+  - { name: Test, prior: Dev }
+  - { name: Prod, prior: Test }
+
+content_view: "RHEL9-Base"
+
+# 2 AM Eastern (07:00 UTC in EST), clear of the 4 AM network reboot
+sync_plan_time: "2026-11-02 07:00:00 UTC"

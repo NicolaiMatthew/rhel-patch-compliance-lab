@@ -1,0 +1,14 @@
+- name: Katello content pipeline
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_become: false
+  module_defaults:
+    group/theforeman.foreman.foreman:
+      server_url: "https://katello.lab.internal"
+      username: admin
+      password: "{{ katello_admin_password }}"
+      validate_certs: false # lab: Katello's self-signed CA
+  roles:
+    - katello_content

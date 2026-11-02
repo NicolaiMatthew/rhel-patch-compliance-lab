@@ -1,0 +1,66 @@
+- name: Default Red Hat repos to on-demand downloads
+  theforeman.foreman.setting:
+    name: default_redhat_download_policy
+    value: on_demand
+
+- name: Upload subscription manifest
+  theforeman.foreman.subscription_manifest:
+    organization: "{{ katello_org }}"
+    manifest_path: "{{ manifest_path }}"
+    state: present
+
+- name: Enable RHEL 9 repositories
+  theforeman.foreman.repository_set:
+    organization: "{{ katello_org }}"
+    product: "{{ rhel_product }}"
+    name: "{{ item.set }}"
+    repositories:
+      - releasever: "9"
+    state: enabled
+  loop: "{{ rhel_repo_sets }}"
+
+- name: Sync RHEL 9 repositories (metadata only, on-demand)
+  theforeman.foreman.repository_sync:
+    organization: "{{ katello_org }}"
+    product: "{{ rhel_product }}"
+    repository: "{{ item.repo }}"
+  loop: "{{ rhel_repo_sets }}"
+
+- name: Daily sync plan
+  theforeman.foreman.sync_plan:
+    organization: "{{ katello_org }}"
+    name: "Daily-RHEL"
+    interval: daily
+    sync_date: "{{ sync_plan_time }}"
+    enabled: true
+    products:
+      - "{{ rhel_product }}"
+
+- name: Lifecycle environments
+  theforeman.foreman.lifecycle_environment:
+    organization: "{{ katello_org }}"
+    name: "{{ item.name }}"
+    label: "{{ item.name }}"
+    prior: "{{ item.prior }}"
+  loop: "{{ lifecycle_envs }}"
+
+- name: Content view
+  theforeman.foreman.content_view:
+    organization: "{{ katello_org }}"
+    name: "{{ content_view }}"
+    repositories: "{{ rhel_repo_sets | map(attribute='repo') | map('community.general.dict_kv', 'name') | map('combine', {'product': rhel_product}) | list }}"
+
+- name: Publish CV v1.0 and promote through every stage (initial baseline)
+  theforeman.foreman.content_view_version:
+    organization: "{{ katello_org }}"
+    content_view: "{{ content_view }}"
+    version: "1.0"
+    lifecycle_environments: [Library, Dev, Test, Prod]
+
+- name: Activation key per environment
+  theforeman.foreman.activation_key:
+    organization: "{{ katello_org }}"
+    name: "ak-{{ item.name | lower }}"
+    lifecycle_environment: "{{ item.name }}"
+    content_view: "{{ content_view }}"
+  loop: "{{ lifecycle_envs }}"
