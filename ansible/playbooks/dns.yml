@@ -1,0 +1,4 @@
+- name: Configure lab DNS
+  hosts: dns
+  roles:
+    - bind_dns

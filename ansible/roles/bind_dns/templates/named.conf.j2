@@ -1,0 +1,26 @@
+options {
+    listen-on port 53 { any; };
+    listen-on-v6 { none; };
+    directory "/var/named";
+    pid-file "/run/named/named.pid";
+
+    allow-query     { {{ lab_subnet }}; 127.0.0.1; };
+    recursion yes;
+    allow-recursion { {{ lab_subnet }}; 127.0.0.1; };
+
+    forwarders { {{ lab_upstream_dns }}; };
+    forward only;
+    dnssec-validation no;
+};
+
+zone "{{ lab_domain }}" IN {
+    type master;
+    file "{{ lab_domain }}.zone";
+    allow-update { none; };
+};
+
+zone "68.168.192.in-addr.arpa" IN {
+    type master;
+    file "68.168.192.rev";
+    allow-update { none; };
+};

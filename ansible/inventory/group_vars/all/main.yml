@@ -1,0 +1,14 @@
+ansible_user: ansible
+ansible_become: true
+
+lab_domain: lab.internal
+lab_dns_server: 192.168.68.20
+lab_upstream_dns: 192.168.68.1
+lab_subnet: 192.168.68.0/22
+
+lab_hosts:
+  dns01: 192.168.68.20
+  katello: 192.168.68.21
+  rhel-dev01: 192.168.68.31
+  rhel-test01: 192.168.68.32
+  rhel-prod01: 192.168.68.33

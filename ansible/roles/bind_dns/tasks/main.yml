@@ -1,0 +1,40 @@
+- name: Install BIND
+  ansible.builtin.dnf:
+    name: [bind, bind-utils]
+    state: present
+
+- name: Deploy named.conf
+  ansible.builtin.template:
+    src: named.conf.j2
+    dest: /etc/named.conf
+    owner: root
+    group: named
+    mode: "0640"
+    validate: named-checkconf %s
+  notify: Reload named
+
+- name: Deploy forward zone
+  ansible.builtin.template:
+    src: forward.zone.j2
+    dest: "/var/named/{{ lab_domain }}.zone"
+    owner: root
+    group: named
+    mode: "0640"
+    validate: "named-checkzone {{ lab_domain }} %s"
+  notify: Reload named
+
+- name: Deploy reverse zone
+  ansible.builtin.template:
+    src: reverse.zone.j2
+    dest: /var/named/68.168.192.rev
+    owner: root
+    group: named
+    mode: "0640"
+    validate: named-checkzone 68.168.192.in-addr.arpa %s
+  notify: Reload named
+
+- name: Enable and start named
+  ansible.builtin.service:
+    name: named
+    state: started
+    enabled: true

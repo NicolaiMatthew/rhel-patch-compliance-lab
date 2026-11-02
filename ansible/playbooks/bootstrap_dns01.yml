@@ -1,0 +1,14 @@
+- name: Bootstrap dns01 LXC (sshd install)
+  hosts: proxmox
+  gather_facts: false
+  vars:
+    dns01_ctid: 220
+  tasks:
+    - name: Install openssh-server inside the container
+      ansible.builtin.command: pct exec {{ dns01_ctid }} -- dnf install -y openssh-server
+      register: sshd_install
+      changed_when: "'Nothing to do' not in sshd_install.stdout"
+
+    - name: Enable and start sshd
+      ansible.builtin.command: pct exec {{ dns01_ctid }} -- systemctl enable --now sshd
+      changed_when: false
