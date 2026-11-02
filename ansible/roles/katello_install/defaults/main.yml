@@ -1,0 +1,6 @@
+foreman_version: "3.19"
+katello_version: "4.21"
+katello_org: "Lab"
+katello_location: "Home"
+pulp_device: /dev/sdb
+swap_size_mb: 4096

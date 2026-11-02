@@ -1,0 +1,169 @@
+# --- Identity -----------------------------------------------------------
+- name: Set FQDN hostname
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}.{{ lab_domain }}"
+
+- name: Write /etc/hosts (FQDN must NOT resolve to loopback)
+  ansible.builtin.copy:
+    dest: /etc/hosts
+    mode: "0644"
+    content: |
+      127.0.0.1   localhost localhost.localdomain
+      ::1         localhost localhost.localdomain
+      {{ lab_hosts[inventory_hostname] }} {{ inventory_hostname }}.{{ lab_domain }} {{ inventory_hostname }}
+
+- name: Disable cloud-init so it stops rewriting /etc/hosts on boot
+  ansible.builtin.file:
+    path: /etc/cloud/cloud-init.disabled
+    state: touch
+    modification_time: preserve
+    access_time: preserve
+
+# --- Swap ---------------------------------------------------------------
+- name: Create swapfile
+  ansible.builtin.command: dd if=/dev/zero of=/swapfile bs=1M count={{ swap_size_mb }}
+  args:
+    creates: /swapfile
+  register: swapfile
+
+- name: Secure and format swapfile
+  when: swapfile.changed
+  block:
+    - ansible.builtin.file:
+        path: /swapfile
+        mode: "0600"
+    - ansible.builtin.command: mkswap /swapfile
+
+- name: Swap in fstab
+  ansible.posix.mount:
+    src: /swapfile
+    path: none
+    fstype: swap
+    opts: sw
+    state: present
+
+- name: Enable swap
+  ansible.builtin.command: swapon -a
+  changed_when: false
+
+# --- Dedicated Pulp storage (LVM) ---------------------------------------
+- name: Install LVM tools (not in the cloud image)
+  ansible.builtin.dnf:
+    name: lvm2
+    state: present
+
+# --- Dedicated Pulp storage (LVM) ---------------------------------------
+- name: Volume group on Pulp disk
+  community.general.lvg:
+    vg: vg_pulp
+    pvs: "{{ pulp_device }}"
+
+- name: Logical volume for Pulp
+  community.general.lvol:
+    vg: vg_pulp
+    lv: lv_pulp
+    size: 100%FREE
+    shrink: false
+
+- name: XFS filesystem
+  community.general.filesystem:
+    dev: /dev/vg_pulp/lv_pulp
+    fstype: xfs
+
+- name: Mount /var/lib/pulp
+  ansible.posix.mount:
+    src: /dev/vg_pulp/lv_pulp
+    path: /var/lib/pulp
+    fstype: xfs
+    opts: defaults
+    state: mounted
+
+- name: Restore SELinux context on mountpoint
+  ansible.builtin.command: restorecon -Rv /var/lib/pulp
+  register: restorecon
+  changed_when: restorecon.stdout | length > 0
+
+# --- Red Hat registration + patching ------------------------------------
+- name: Register with Red Hat
+  community.general.redhat_subscription:
+    state: present
+    org_id: "{{ rhsm_org_id }}"
+    activationkey: "{{ rhsm_activation_key }}"
+
+- name: Check whether Katello is already installed
+  ansible.builtin.stat:
+    path: /etc/foreman-installer/.lab-installed
+  register: katello_marker
+
+- name: Fully patch the OS (initial build only; Katello upgrades go through foreman-maintain)
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+  register: os_patch
+  when: not katello_marker.stat.exists
+
+- name: Reboot if patched
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+  when: os_patch.changed
+
+# --- Firewall -----------------------------------------------------------
+- name: Install and start firewalld
+  block:
+    - ansible.builtin.dnf:
+        name: firewalld
+        state: present
+    - ansible.builtin.service:
+        name: firewalld
+        state: started
+        enabled: true
+
+- name: Open Foreman/Katello ports
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: [80/tcp, 443/tcp, 9090/tcp]
+
+# --- Foreman/Katello repos + installer ----------------------------------
+- name: Install Foreman, Katello and Puppet repo definitions
+  ansible.builtin.dnf:
+    name:
+      - "https://yum.theforeman.org/releases/{{ foreman_version }}/el9/x86_64/foreman-release.rpm"
+      - "https://yum.theforeman.org/katello/{{ katello_version }}/katello/el9/x86_64/katello-repos-latest.rpm"
+      - https://yum.puppet.com/puppet8-release-el-9.noarch.rpm
+    state: present
+    disable_gpg_check: true # only the repo-definition RPMs; packages from these repos are GPG-checked
+
+- name: Install foreman-installer-katello
+  ansible.builtin.dnf:
+    name: foreman-installer-katello
+    state: present
+
+- name: Run foreman-installer (15-30 min)
+  ansible.builtin.command: >
+    foreman-installer --scenario katello
+    --foreman-initial-organization "{{ katello_org }}"
+    --foreman-initial-location "{{ katello_location }}"
+    --foreman-initial-admin-password "{{ katello_admin_password }}"
+  args:
+    creates: /etc/foreman-installer/.lab-installed
+  async: 3600
+  poll: 30
+  no_log: true # keeps the admin password out of output
+  register: installer
+
+- name: Mark install complete
+  ansible.builtin.file:
+    path: /etc/foreman-installer/.lab-installed
+    state: touch
+  when: installer.changed
+
+
+- name: Keep hammer CLI creds in sync with SOPS
+  ansible.builtin.lineinfile:
+    path: /root/.hammer/cli.modules.d/foreman.yml
+    regexp: '^\s*:password:'
+    line: "  :password: '{{ katello_admin_password }}'"
+  no_log: true
