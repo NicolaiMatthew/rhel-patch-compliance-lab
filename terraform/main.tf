@@ -3,9 +3,9 @@ locals {
 
   vms = {
     katello     = { id = 221, template = 9100, ip = "192.168.68.21", cores = 4, memory = 16384, disk = 40, pulp_disk = 60 }
-    rhel-dev01  = { id = 231, template = 9100, ip = "192.168.68.31", cores = 2, memory = 1536, disk = 20, pulp_disk = 0 }
-    rhel-test01 = { id = 232, template = 9100, ip = "192.168.68.32", cores = 2, memory = 1536, disk = 20, pulp_disk = 0 }
-    rhel-prod01 = { id = 233, template = 9100, ip = "192.168.68.33", cores = 2, memory = 1536, disk = 20, pulp_disk = 0 }
+    rhel-dev01  = { id = 231, template = 9101, ip = "192.168.68.31", cores = 2, memory = 1536, disk = 20, pulp_disk = 0 }
+    rhel-test01 = { id = 232, template = 9101, ip = "192.168.68.32", cores = 2, memory = 1536, disk = 20, pulp_disk = 0 }
+    rhel-prod01 = { id = 233, template = 9101, ip = "192.168.68.33", cores = 2, memory = 1536, disk = 20, pulp_disk = 0 }
   }
 }
 
