@@ -1,0 +1,15 @@
+- name: Set FQDN hostname
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}.{{ lab_domain }}"
+
+- name: Install Katello CA consumer (points subscription-manager at Katello, not Red Hat)
+  ansible.builtin.dnf:
+    name: "http://katello.{{ lab_domain }}/pub/katello-ca-consumer-latest.noarch.rpm"
+    state: present
+    disable_gpg_check: true # bootstrap RPM served by our own Katello
+
+- name: Register with the activation key for this host's environment
+  community.general.redhat_subscription:
+    state: present
+    org_id: "{{ katello_org }}"
+    activationkey: "ak-{{ lifecycle_env }}"

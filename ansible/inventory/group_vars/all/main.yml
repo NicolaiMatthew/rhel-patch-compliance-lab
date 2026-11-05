@@ -12,3 +12,4 @@ lab_hosts:
   rhel-dev01: 192.168.68.31
   rhel-test01: 192.168.68.32
   rhel-prod01: 192.168.68.33
+katello_org: Lab

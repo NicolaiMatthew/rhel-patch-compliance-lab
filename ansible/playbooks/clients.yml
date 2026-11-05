@@ -1,0 +1,4 @@
+- name: Register RHEL clients to Katello
+  hosts: rhel_clients
+  roles:
+    - rhel_client
