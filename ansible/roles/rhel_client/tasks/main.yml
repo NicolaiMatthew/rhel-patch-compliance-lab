@@ -13,3 +13,7 @@
     state: present
     org_id: "{{ katello_org }}"
     activationkey: "ak-{{ lifecycle_env }}"
+
+- name: Upload package profile so Katello can calculate errata applicability
+  ansible.builtin.command: dnf uploadprofile --force-upload
+  changed_when: false
