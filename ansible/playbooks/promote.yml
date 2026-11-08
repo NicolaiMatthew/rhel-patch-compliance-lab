@@ -1,0 +1,28 @@
+- name: Publish and promote a content view session
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_become: false
+    content_view: RHEL9-Base
+  module_defaults:
+    group/theforeman.foreman.foreman:
+      server_url: "https://katello.lab.internal"
+      username: admin
+      password: "{{ katello_admin_password }}"
+      validate_certs: false
+  tasks:
+    - name: Require a version and target environments
+      ansible.builtin.assert:
+        that:
+          - cv_version is defined
+          - cv_envs is defined
+          - cv_envs | length > 0
+        fail_msg: "Usage -e cv_version=2.0 -e '{\"cv_envs\": [\"Library\",\"Dev\"]}'"
+
+    - name: "Promote {{ content_view }} {{ cv_version }} to {{ cv_envs | join(', ') }}"
+      theforeman.foreman.content_view_version:
+        organization: "{{ katello_org }}"
+        content_view: "{{ content_view }}"
+        version: "{{ cv_version }}"
+        lifecycle_environments: "{{ cv_envs }}"
