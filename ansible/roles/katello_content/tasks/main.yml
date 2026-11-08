@@ -19,13 +19,6 @@
     state: enabled
   loop: "{{ rhel_repo_sets }}"
 
-- name: Sync RHEL 9 repositories (metadata only, on-demand)
-  theforeman.foreman.repository_sync:
-    organization: "{{ katello_org }}"
-    product: "{{ rhel_product }}"
-    repository: "{{ item.repo }}"
-  loop: "{{ rhel_repo_sets }}"
-
 - name: Daily sync plan
   theforeman.foreman.sync_plan:
     organization: "{{ katello_org }}"
@@ -50,12 +43,31 @@
     name: "{{ content_view }}"
     repositories: "{{ rhel_repo_sets | map(attribute='repo') | map('community.general.dict_kv', 'name') | map('combine', {'product': rhel_product}) | list }}"
 
-- name: Publish CV v1.0 and promote through every stage (initial baseline)
-  theforeman.foreman.content_view_version:
+- name: CV filter - include all RPMs that have no errata
+  theforeman.foreman.content_view_filter:
     organization: "{{ katello_org }}"
+    content_view: "{{ content_view  }}"
+    name: rpms-without-errata
+    filter_type: rpm
+    inclusion: true
+    original_packages: true
+
+- name: CV filter - include errata (rule below limits by date)
+  theforeman.foreman.content_view_filter:
+    organization: "{{ katello_org }}"
+    content_view: "{{ content_view  }}"
+    name: errata-by-date
+    filter_type: erratum
+    inclusion: true
+
+- name: CV filter rule - errata issued on or before cutoff 
+  theforeman.foreman.content_view_filter_rule:
     content_view: "{{ content_view }}"
-    version: "1.0"
-    lifecycle_environments: [Library, Dev, Test, Prod]
+    date_type: issued
+    types: [security, bugfix, enhancement]
+    content_view_filter: errata-by-date
+    organization: "{{ katello_org  }}"
+    end_date: "{{ cv_errata_cutoff }}"
 
 - name: Activation key per environment
   theforeman.foreman.activation_key:

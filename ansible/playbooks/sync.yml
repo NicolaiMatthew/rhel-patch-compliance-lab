@@ -1,0 +1,21 @@
+- name: Sync Red Hat content from the CDN
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ansible_become: false
+  vars_files:
+    - ../roles/katello_content/defaults/main.yml
+  module_defaults:
+    group/theforeman.foreman.foreman:
+      server_url: "https://katello.lab.internal"
+      username: admin
+      password: "{{ katello_admin_password }}"
+      validate_certs: false
+  tasks:
+    - name: Sync RHEL 9 repositories (metadata only, on-demand)
+      theforeman.foreman.repository_sync:
+        organization: "{{ katello_org }}"
+        product: "{{ rhel_product }}"
+        repository: "{{ item.repo }}"
+      loop: "{{ rhel_repo_sets }}"
