@@ -23,6 +23,9 @@
 - name: Clients - register to Katello
   ansible.builtin.import_playbook: playbooks/clients.yml
 
+- name: Clients - patch to their content view
+  ansible.builtin.import_playbook: playbooks/patch.yml
+
 - name: Clients - CIS hardening
   ansible.builtin.import_playbook: playbooks/harden.yml
 
