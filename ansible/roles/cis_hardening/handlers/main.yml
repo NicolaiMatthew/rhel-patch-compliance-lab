@@ -1,0 +1,22 @@
+- name: Validate sshd config before restarting
+  ansible.builtin.command: /usr/sbin/sshd -t
+  changed_when: false
+  listen: restart sshd
+
+- name: Restart sshd
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+  listen: restart sshd
+
+- name: Restart journald
+  ansible.builtin.service:
+    name: systemd-journald
+    state: restarted
+  listen: restart journald
+
+- name: Restart rsyslog
+  ansible.builtin.service:
+    name: rsyslog
+    state: restarted
+  listen: restart rsyslog

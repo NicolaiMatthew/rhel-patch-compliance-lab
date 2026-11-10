@@ -1,0 +1,11 @@
+- name: SSH hardening
+  ansible.builtin.import_tasks: ssh.yml
+
+- name: Kernel, network and filesystem hardening
+  ansible.builtin.import_tasks: kernel.yml
+
+- name: Authentication, passwords and privilege
+  ansible.builtin.import_tasks: auth.yml
+
+- name: Services, firewall, logging, cron and file integrity
+  ansible.builtin.import_tasks: system.yml

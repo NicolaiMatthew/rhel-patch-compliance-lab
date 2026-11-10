@@ -1,0 +1,46 @@
+- name: Login warning banners (no OS or version disclosure)
+  ansible.builtin.copy:
+    dest: "{{ item }}"
+    content: "{{ cis_banner }}\n"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [/etc/issue, /etc/issue.net]
+
+# sshd uses the FIRST value it reads for each setting, and 00- loads before vendor files
+- name: CIS sshd settings
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-cis.conf
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      # Managed by Ansible (cis_hardening)
+      PermitRootLogin no
+      PermitEmptyPasswords no
+      HostbasedAuthentication no
+      IgnoreRhosts yes
+      PermitUserEnvironment no
+      ClientAliveInterval 15
+      ClientAliveCountMax 3
+      LoginGraceTime 60
+      LogLevel VERBOSE
+      MaxAuthTries 4
+      MaxSessions 10
+      MaxStartups 10:30:60
+      Banner /etc/issue.net
+  notify: restart sshd
+
+- name: Find SSH host private keys
+  ansible.builtin.find:
+    paths: /etc/ssh
+    patterns: "ssh_host_*_key"
+  register: host_keys
+
+- name: Host private keys readable by root only
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "0600"
+  loop: "{{ host_keys.files }}"
+  loop_control:
+    label: "{{ item.path }}"

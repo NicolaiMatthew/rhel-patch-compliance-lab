@@ -1,0 +1,96 @@
+- name: Install firewalld and AIDE
+  ansible.builtin.dnf:
+    name: [firewalld, aide]
+    state: present
+
+- name: Enable firewalld (the default zone allows SSH)
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Collect installed services
+  ansible.builtin.service_facts:
+
+- name: Stop, disable and mask unneeded services (only if installed)
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+    masked: true
+  loop: [rpcbind.service, nfs-server.service, bluetooth.service]
+  when: item in ansible_facts.services
+
+- name: Mask rpcbind socket activation too
+  ansible.builtin.systemd_service:
+    name: rpcbind.socket
+    state: stopped
+    enabled: false
+    masked: true
+  when: "'rpcbind.service' in ansible_facts.services"
+
+- name: journald config directory
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    mode: "0755"
+
+- name: journald - persistent, compressed logs
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/cis.conf
+    mode: "0644"
+    content: |
+      [Journal]
+      Storage=persistent
+      Compress=yes
+  notify: restart journald
+
+- name: rsyslog creates log files 0640
+  ansible.builtin.copy:
+    dest: /etc/rsyslog.d/00-cis.conf
+    mode: "0644"
+    content: "$FileCreateMode 0640\n"
+  when: "'rsyslog.service' in ansible_facts.services"
+  notify: restart rsyslog
+
+- name: Cron directories root-only
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: "0700"
+  loop: [/etc/cron.d, /etc/cron.daily, /etc/cron.hourly, /etc/cron.weekly, /etc/cron.monthly]
+
+- name: crontab root-only
+  ansible.builtin.file:
+    path: /etc/crontab
+    mode: "0600"
+
+- name: Only root may schedule cron and at jobs
+  ansible.builtin.copy:
+    dest: "{{ item }}"
+    content: ""
+    owner: root
+    group: root
+    mode: "0600"
+  loop: [/etc/cron.allow, /etc/at.allow]
+
+- name: Remove cron.deny (allow-list replaces it)
+  ansible.builtin.file:
+    path: /etc/cron.deny
+    state: absent
+
+- name: Build AIDE baseline database (first run only, takes several minutes)
+  ansible.builtin.command: aide --init
+  args:
+    creates: /var/lib/aide/aide.db.gz
+  register: aide_init
+
+- name: Activate AIDE database
+  ansible.builtin.command: mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+  when: aide_init.changed
+
+- name: Daily AIDE integrity check
+  ansible.builtin.cron:
+    name: AIDE integrity check
+    minute: "5"
+    hour: "3"
+    job: /usr/sbin/aide --check

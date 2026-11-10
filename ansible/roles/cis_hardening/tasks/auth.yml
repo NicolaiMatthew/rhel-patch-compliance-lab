@@ -1,0 +1,87 @@
+# authselect owns the PAM stack on RHEL 9. sssd is Red Hat's default profile.
+- name: Read current authselect configuration
+  ansible.builtin.command: authselect current
+  register: authselect_current
+  changed_when: false
+  failed_when: false
+
+- name: PAM via authselect - lockout, password history, no empty-password logins
+  ansible.builtin.command: authselect select sssd with-faillock with-pwhistory without-nullok --force
+  when: >-
+    authselect_current.rc != 0 or
+    'with-faillock' not in authselect_current.stdout or
+    'with-pwhistory' not in authselect_current.stdout or
+    'without-nullok' not in authselect_current.stdout
+
+- name: Lockout policy (5 failures locks the account for 15 minutes)
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^#?\s*{{ item.key }}\s*='
+    line: "{{ item.key }} = {{ item.value }}"
+  loop: "{{ cis_faillock | dict2items }}"
+
+- name: Password quality policy
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^#?\s*{{ item.key }}\s*='
+    line: "{{ item.key }} = {{ item.value }}"
+  loop: "{{ cis_pwquality | dict2items }}"
+
+- name: Password quality and history also apply to root
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    regexp: '^#?\s*enforce_for_root'
+    line: enforce_for_root
+  loop: [/etc/security/pwquality.conf, /etc/security/pwhistory.conf]
+
+- name: Remember last 24 passwords
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwhistory.conf
+    regexp: '^#?\s*remember\s*='
+    line: remember = 24
+
+- name: Password max age and default umask for new accounts
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: "^#?\\s*{{ item.key }}\\s"
+    line: "{{ item.key }}\t{{ item.value }}"
+  loop:
+    - { key: PASS_MAX_DAYS, value: 365 }
+    - { key: UMASK, value: "027" }
+
+- name: Lock new accounts after 30 days of inactivity
+  ansible.builtin.lineinfile:
+    path: /etc/default/useradd
+    regexp: '^INACTIVE='
+    line: INACTIVE=30
+
+- name: Shell defaults - umask 027 and 15-minute idle timeout
+  ansible.builtin.copy:
+    dest: /etc/profile.d/cis.sh
+    mode: "0644"
+    content: |
+      # Managed by Ansible (cis_hardening)
+      umask 027
+      TMOUT=900
+      readonly TMOUT
+      export TMOUT
+
+- name: Empty group that controls who may use su
+  ansible.builtin.group:
+    name: sugroup
+    state: present
+
+- name: Restrict su to members of sugroup (nobody)
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/su
+    regexp: '^#?\s*auth\s+required\s+pam_wheel\.so'
+    line: "auth            required        pam_wheel.so use_uid group=sugroup"
+
+- name: sudo - run commands in a pseudo-terminal and log every command
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/cis
+    mode: "0440"
+    content: |
+      Defaults use_pty
+      Defaults logfile="/var/log/sudo.log"
+    validate: visudo -cf %s

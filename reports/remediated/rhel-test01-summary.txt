@@ -1,0 +1,1 @@
+rhel-test01 | remediated | score 92.268814% | pass 245 | fail 17

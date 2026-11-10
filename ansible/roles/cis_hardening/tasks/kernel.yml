@@ -1,0 +1,45 @@
+- name: CIS kernel parameters (saved to /etc/sysctl.d and applied live)
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/60-cis.conf
+    reload: true
+  loop: "{{ cis_sysctl | dict2items }}"
+  loop_control:
+    label: "{{ item.key }} = {{ item.value }}"
+
+- name: Disable unused filesystems and USB storage
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/cis-disabled.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by Ansible (cis_hardening)
+      {% for m in cis_disabled_modules %}
+      install {{ m }} /bin/false
+      blacklist {{ m }}
+      {% endfor %}
+
+- name: Lock down /dev/shm (no devices, no setuid, no execution)
+  ansible.posix.mount:
+    path: /dev/shm
+    src: tmpfs
+    fstype: tmpfs
+    opts: defaults,nodev,nosuid,noexec
+    state: mounted
+
+- name: Core dump config directory
+  ansible.builtin.file:
+    path: /etc/systemd/coredump.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Disable core dumps (they can leak secrets from memory)
+  ansible.builtin.copy:
+    dest: /etc/systemd/coredump.conf.d/cis.conf
+    mode: "0644"
+    content: |
+      [Coredump]
+      Storage=none
+      ProcessSizeMax=0

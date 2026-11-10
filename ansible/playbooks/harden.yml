@@ -1,0 +1,16 @@
+- name: Apply curated CIS Level 1 hardening
+  hosts: rhel_clients
+  serial: 1
+  roles:
+    - cis_hardening
+  post_tasks:
+    # Drop the cached SSH session so the next check is a FRESH login under the new sshd config
+    - name: Reset SSH connection
+      ansible.builtin.meta: reset_connection
+
+    - name: Prove Ansible can still log in after hardening
+      ansible.builtin.ping:
+
+    - name: Prove the host can still reach Katello for patches
+      ansible.builtin.command: dnf -q makecache
+      changed_when: false
