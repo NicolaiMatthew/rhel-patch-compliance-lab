@@ -1,6 +1,5 @@
 - name: Sync Red Hat content from the CDN
   hosts: localhost
-  connection: local
   gather_facts: false
   vars:
     ansible_become: false
@@ -11,7 +10,16 @@
       server_url: "https://katello.lab.internal"
       username: admin
       password: "{{ katello_admin_password }}"
-      validate_certs: false
+      ca_path: "{{ katello_ca_path }}"
+  pre_tasks:
+    - name: Fetch Katello CA certificate over SSH (trusted channel)
+      ansible.builtin.fetch:
+        src: /var/www/html/pub/katello-server-ca.crt
+        dest: "{{ katello_ca_path }}"
+        flat: true
+      delegate_to: katello
+      vars:
+        ansible_become: true
   tasks:
     - name: Sync RHEL 9 repositories (metadata only, on-demand)
       theforeman.foreman.repository_sync:

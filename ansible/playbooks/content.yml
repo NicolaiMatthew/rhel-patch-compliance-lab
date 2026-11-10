@@ -1,6 +1,5 @@
 - name: Katello content pipeline
   hosts: localhost
-  connection: local
   gather_facts: false
   vars:
     ansible_become: false
@@ -9,6 +8,15 @@
       server_url: "https://katello.lab.internal"
       username: admin
       password: "{{ katello_admin_password }}"
-      validate_certs: false # lab: Katello's self-signed CA
+      ca_path: "{{ katello_ca_path }}" # checking Katello's TLS cert against own CA
+  pre_tasks:
+    - name: Fetch Katello CA certificate over SSH (trusted channel)
+      ansible.builtin.fetch:
+        src: /var/www/html/pub/katello-server-ca.crt
+        dest: "{{ katello_ca_path }}"
+        flat: true
+      delegate_to: katello
+      vars:
+        ansible_become: true
   roles:
     - katello_content
