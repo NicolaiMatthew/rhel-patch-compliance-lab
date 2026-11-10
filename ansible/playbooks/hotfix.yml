@@ -1,0 +1,29 @@
+- name: Emergency hotfix - add one errata to the running version and promote it
+  hosts: foreman
+  vars:
+    content_view: RHEL9-Base
+  tasks:
+    - name: Require errata, base version and target environments
+      ansible.builtin.assert:
+        that:
+          - errata_id is defined
+          - base_version is defined
+          - target_envs is defined
+        fail_msg: "Usage: -e errata_id=RHSA-2026:0067 -e base_version=2.0 -e target_envs=Test,Prod"
+
+    # hammer needs the version's numeric ID; ask for it as JSON and parse it
+    - name: Look up the ID of {{ content_view }} {{ base_version }}
+      ansible.builtin.command: >
+        hammer --output json content-view version info
+        --content-view "{{ content_view }}" --version "{{ base_version }}"
+        --organization "{{ katello_org }}"
+      register: cvv
+      changed_when: false
+
+    - name: Incremental update - add {{ errata_id }} and promote to {{ target_envs }}
+      ansible.builtin.command: >
+        hammer content-view version incremental-update
+        --content-view-version-id {{ (cvv.stdout | from_json).Id }}
+        --errata-ids {{ errata_id }}
+        --lifecycle-environments {{ target_envs }}
+        --organization "{{ katello_org }}"
