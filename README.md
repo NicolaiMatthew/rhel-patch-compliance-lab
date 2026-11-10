@@ -168,4 +168,4 @@ ansible-playbook playbooks/scan.yml -e scan_phase=remediated
 
 ---
 
-**Author:** Nicolai Matthew · RHCSA · [\[LinkedIn URL\]](https://www.linkedin.com/in/nicolai-matthew/)
+**Author:** Nicolai Matthew · RHCSA · [\[LinkedIn URL\]](https://lnkd.in/p/giRTe7kk)
