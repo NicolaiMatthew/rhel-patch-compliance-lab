@@ -3,6 +3,11 @@
     name: default_redhat_download_policy
     value: on_demand
 
+- name: Errata status reflects approved (installable) errata, not everything Red Hat published
+  theforeman.foreman.setting:
+    name: errata_status_installable
+    value: true
+
 - name: Upload subscription manifest
   theforeman.foreman.subscription_manifest:
     organization: "{{ katello_org }}"

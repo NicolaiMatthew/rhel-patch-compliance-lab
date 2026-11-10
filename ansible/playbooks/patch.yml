@@ -67,3 +67,7 @@
     - name: Upload package profile to Katello
       ansible.builtin.command: dnf uploadprofile --force-upload
       changed_when: false
+
+    - name: Refresh host facts in Katello (OS version shown in the UI)
+      ansible.builtin.command: subscription-manager facts --update
+      changed_when: false
