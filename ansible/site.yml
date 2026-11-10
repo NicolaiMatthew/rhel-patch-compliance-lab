@@ -1,0 +1,30 @@
+# Full environment build, in order. Usage: ansible-playbook site.yml
+- name: DNS - bootstrap dns01 container
+  ansible.builtin.import_playbook: playbooks/bootstrap_dns01.yml
+
+- name: DNS - BIND forward and reverse zones
+  ansible.builtin.import_playbook: playbooks/dns.yml
+
+- name: Katello - install
+  ansible.builtin.import_playbook: playbooks/katello.yml
+
+- name: Katello - content configuration
+  ansible.builtin.import_playbook: playbooks/content.yml
+
+- name: Katello - sync from Red Hat CDN
+  ansible.builtin.import_playbook: playbooks/sync.yml
+
+- name: Katello - initial content view baseline to all environments
+  ansible.builtin.import_playbook: playbooks/promote.yml
+  vars:
+    cv_version: "1.0"
+    cv_envs: [Library, Dev, Test, Prod]
+
+- name: Clients - register to Katello
+  ansible.builtin.import_playbook: playbooks/clients.yml
+
+- name: Clients - CIS hardening
+  ansible.builtin.import_playbook: playbooks/harden.yml
+
+- name: Clients - compliance scan
+  ansible.builtin.import_playbook: playbooks/scan.yml
