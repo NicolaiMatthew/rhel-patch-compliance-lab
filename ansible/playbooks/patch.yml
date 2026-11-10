@@ -1,0 +1,69 @@
+- name: Patch RHEL clients to their content view
+  hosts: rhel_clients        # all clients; narrow at run time with -l dev|test|prod
+  serial: 1                  # finish one host completely before starting the next
+
+  tasks:
+    # STEP 3 - Patch. Describe the end state; the module figures out the dnf commands.
+    # Katello only shows this host its environment's content view, so "latest" means
+    # "latest APPROVED for this stage", not latest from Red Hat.
+    - name: Update all packages to the latest version this host's content view allows
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+      register: patch_result
+
+    # STEP 4 - Ask RHEL whether a reboot is needed. Exit code 1 = yes, 0 = no.
+    # command treats any non-zero rc as failure, so we declare 0 and 1 as normal.
+    - name: Check whether a reboot is required
+      ansible.builtin.command: dnf needs-restarting -r
+      register: reboot_check
+      failed_when: reboot_check.rc not in [0, 1]
+      changed_when: false    # a check never changes the system
+
+    # STEP 5 - Reboot only when step 4 said so. The module waits until SSH responds again.
+    - name: Reboot if required
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+      when: reboot_check.rc == 1
+
+    # STEP 6a - Prove the reboot loaded the new kernel: running kernel must equal newest installed.
+    - name: Get running kernel
+      ansible.builtin.command: uname -r
+      register: running_kernel
+      changed_when: false
+
+    - name: Get newest installed kernel
+      ansible.builtin.shell: rpm -q kernel --qf '%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort -V | tail -1
+      register: newest_kernel
+      changed_when: false
+
+    - name: Verify the newest kernel is running
+      ansible.builtin.assert:
+        that: running_kernel.stdout == newest_kernel.stdout
+        fail_msg: "Running {{ running_kernel.stdout }} but newest installed is {{ newest_kernel.stdout }}"
+
+    # STEP 6b - Prove critical services survived the patch/reboot.
+    - name: Collect service states
+      ansible.builtin.service_facts:
+
+    - name: Verify critical services are running
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['sshd.service'].state == 'running'
+          - ansible_facts.services['chronyd.service'].state == 'running'
+
+    # STEP 7 - Prove nothing is left: no advisories available from this host's content view.
+    - name: List remaining available errata
+      ansible.builtin.command: dnf -q updateinfo list
+      register: errata_left
+      changed_when: false
+
+    - name: Verify host is fully patched to its content view
+      ansible.builtin.assert:
+        that: errata_left.stdout | length == 0
+        fail_msg: "Errata still available: {{ errata_left.stdout_lines | length }}"
+
+    # STEP 8 - Push the new package list to Katello so the UI's errata counts update.
+    - name: Upload package profile to Katello
+      ansible.builtin.command: dnf uploadprofile --force-upload
+      changed_when: false
