@@ -4,3 +4,4 @@
 crash.log
 manifest.zip
 *.dec.yml
+reports/**/*-arf.xml
